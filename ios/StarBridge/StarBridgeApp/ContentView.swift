@@ -17,6 +17,9 @@ struct ContentView: View {
     @State private var nameFixPrompt: (alias: String, target: String)? = nil  // v9.7.1 疑似智能体名候选
     @State private var showAccount = false                   // v9.9 DeepSeek 账户页
     @State private var showWargame = false                  // v9.10 推演工作台
+    @State private var showPending = false                   // R1 待你决定
+    @State private var showBrief = false                     // R2 晨报
+    @State private var pendingBadge = 0                      // R1 徽标计数
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -63,6 +66,35 @@ struct ContentView: View {
                     }
                 }
                 Spacer()
+                // R2 ☀️ 晨报入口
+                Button {
+                    showBrief = true
+                } label: {
+                    Image(systemName: "sun.max.fill")
+                        .font(.system(size: 13)).foregroundColor(.yellow)
+                        .frame(width: 28, height: 28)
+                        .background(Color.yellow.opacity(0.15)).clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                // R1 📮 待你决定(带徽标)
+                Button {
+                    showPending = true
+                    Task { await refreshPendingBadge() }
+                } label: {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "bell.badge.fill")
+                            .font(.system(size: 14)).foregroundColor(.white)
+                            .frame(width: 28, height: 28)
+                            .background(Color.white.opacity(0.08)).clipShape(Circle())
+                        if pendingBadge > 0 {
+                            Text("\(pendingBadge)")
+                                .font(.system(size: 9, weight: .bold)).foregroundColor(.white)
+                                .padding(3).background(Color.red).clipShape(Circle())
+                                .offset(x: 5, y: -5)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
                 // v9.9 DeepSeek 账户入口（余额 + 充值）
                 Button {
                     showAccount = true
@@ -297,6 +329,31 @@ struct ContentView: View {
         // v9.10 商业沙盘推演工作台（内嵌打开, 不退出星台）
         .sheet(isPresented: $showWargame) {
             SafariSheet(url: URL(string: "\(BridgeConfig.baseURL)/wargame")!)
+        }
+        // R1 待你决定收件箱
+        .sheet(isPresented: $showPending) {
+            PendingDecisionsView()
+        }
+        // R2 晨报
+        .sheet(isPresented: $showBrief) {
+            MorningBriefView()
+        }
+        // R1 徽标轮询(30s)
+        .task {
+            while !Task.isCancelled {
+                await refreshPendingBadge()
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+            }
+        }
+    }
+
+    private func refreshPendingBadge() async {
+        guard let url = URL(string: "\(BridgeConfig.baseURL)/api/pending-decisions") else { return }
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(BridgeConfig.token)", forHTTPHeaderField: "Authorization")
+        if let (data, _) = try? await URLSession.shared.data(for: req),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            pendingBadge = (obj["count"] as? Int) ?? 0
         }
     }
 

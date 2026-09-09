@@ -117,6 +117,86 @@ const server = http.createServer(async (req, res) => {
     } catch (e) { return sendJson(res, 200, {ok:false, error:String(e).slice(0,100)}); }
   }
 
+  // R1 待你决定收件箱: 聚合需用户拍板事项(审批/会签/求救/低余额)
+  function decisionsAggregator() {
+    const out = [];
+    try {
+      const bus = JSON.parse(fs.readFileSync(os.homedir() + '/.dsh/agent-bus.json', 'utf8'));
+      for (const a of (bus.approvals || [])) {
+        if (String(a.status || '').toLowerCase() !== 'pending') continue;
+        out.push({ id: a.id, kind: a.kind || 'approval', title: a.title || '审批',
+                   detail: String(a.detail || '').slice(0, 300), ts: a.ts || a.created_at || '',
+                   decisionable: true });
+      }
+    } catch (e) { /* agent-bus 不可读 */ }
+    try {
+      const dir = os.homedir() + '/dsh-collab/data/registry/convention-proposals';
+      if (fs.existsSync(dir)) {
+        for (const f of fs.readdirSync(dir)) {
+          if (!f.endsWith('.json')) continue;
+          try {
+            const pr = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+            if (String(pr.status) === 'pending') {
+              out.push({ id: pr.pr_id, kind: 'signoff', title: '会签待办: ' + (pr.title || f),
+                         detail: (pr.suggest || '').slice(0, 200), ts: pr.ts || '', decisionable: false });
+            }
+          } catch (e2) {}
+        }
+      }
+    } catch (e) {}
+    if (deepseekCache && deepseekCache.data && typeof deepseekCache.data.total_balance === 'number' &&
+        deepseekCache.data.total_balance < 20) {
+      out.push({ id: 'ds-low-balance', kind: 'balance', title: 'DeepSeek 余额低(¥' + deepseekCache.data.total_balance.toFixed(2) + ')',
+                 detail: '低于 ¥20 阈值, 建议充值(星台钱包可跳转)', ts: new Date().toISOString(), decisionable: false });
+    }
+    return out;
+  }
+  if (req.method === 'GET' && p === '/api/pending-decisions') {
+    return sendJson(res, 200, { ok: true, ts: Date.now(), count: decisionsAggregator().length, items: decisionsAggregator() });
+  }
+  // R1 决定回写: 黑板 data/ops/decision-<id>(coordinator 桥接执行)
+  if (req.method === 'POST' && p === '/api/decision') {
+    try {
+      let bodyStr = '';
+      for await (const c of req) bodyStr += c;
+      const { id, verdict, note } = JSON.parse(bodyStr || '{}');
+      if (!id || !verdict) return sendJson(res, 400, { error: 'id+verdict 必填' });
+      const key = 'data/ops/decision-' + String(id).replace(/[^A-Za-z0-9\-_]/g, '') + '-' + Date.now();
+      const r = await bbWrite(key, { from: 'sb-mobile', id, verdict, note: note || '', ts: Date.now(),
+                                     type: 'decision', note_hint: 'coordinator 订阅桥接执行' });
+      if (r.code === 200) return sendJson(res, 200, { ok: true, key });
+      return sendJson(res, 500, { error: 'bb write failed', detail: r.body });
+    } catch (e) { return sendJson(res, 500, { error: String(e).slice(0, 100) }); }
+  }
+  // R2 晨报: 黑板/注册表可得项聚合(外卖业务块待 8787 契约, 标注)
+  if (req.method === 'GET' && p === '/api/morning-brief') {
+    try {
+      const out = { ok: true, ts: Date.now(), generated: new Date().toISOString(),
+                    sections: { pending: { title: '待你决定', count: decisionsAggregator().length,
+                                           note: decisionsAggregator().length ? '' : '无待办' } } };
+      // 健康: 最新 cld-monitor 告警卡名(黑板 notes/mac-mini/cld-monitor-alert-*)
+      try {
+        const req2 = http.get(BB + '/notes/', { headers: { 'Authorization': 'Bearer bb-token-20260829-macmini' } }, (r2) => {
+          let d2 = ''; r2.on('data', c => d2 += c); r2.on('end', () => {
+            try {
+              const j = JSON.parse(d2);
+              const list = j.list;
+              const keys = Array.isArray(list) ? list : (list ? Object.keys(list) : Object.keys(j));
+              const alertKeys = keys.filter(k => /cld-monitor-alert-/.test(String(k)));
+              const last = alertKeys.sort().pop() || '';
+              out.sections.health = { title: '系统健康', last_alert: last, alerts_24h: alertKeys.filter(k => /20260909/.test(String(k))).length };
+            } catch (e3) { out.sections.health = { title: '系统健康', note: '黑板读失败' }; }
+            sendJson(res, 200, out);
+          });
+        });
+        req2.on('error', () => { out.sections.health = { title: '系统健康', note: '不可达' }; sendJson(res, 200, out); });
+        return;
+      } catch (e2) { out.sections.health = { title: '系统健康', note: '不可达' }; }
+      out.sections.voice_engine = { title: '语音引擎', note: 'cld-voice L1 已部署(mbp 侧全栈验证中)' };
+      return sendJson(res, 200, out);
+    } catch (e) { return sendJson(res, 500, { error: String(e).slice(0, 120) }); }
+  }
+
   if (req.method === 'GET' && p === '/api/devices') {
     // 列在线设备（nodes/* 心跳 <90s）——可切换对话目标 + 各端会话清单（v9.7）
     const devices = [];

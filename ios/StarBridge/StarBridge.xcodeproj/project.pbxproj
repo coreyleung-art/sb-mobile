@@ -17,14 +17,18 @@
 		471294C28550F8534B51601B /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0CFE3ABA93DFFB532FE368 /* Message.swift */; };
 		56C0DF5562881EE47A1CB286 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0CFE3ABA93DFFB532FE368 /* Message.swift */; };
 		57559BCEE696C8350D385A18 /* PlatformColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F68669986829EDE3BAC9D61 /* PlatformColor.swift */; };
+		5B4A1797E17BBDFD67579DB5 /* PendingDecisionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D828846FB3F33CF8257B1470 /* PendingDecisionsView.swift */; };
 		5BF5922A20A8AB757FE9BF56 /* ContentView.swift.bak-pre982 in Resources */ = {isa = PBXBuildFile; fileRef = 60C5DA22B38A6A0592E68680 /* ContentView.swift.bak-pre982 */; };
+		5D3C0B83DB6D11BD7893E0DE /* MorningBriefView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B094B3E91DB92D2091937528 /* MorningBriefView.swift */; };
 		7081353E2F09AE094B540E12 /* BridgeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA166235E3DF298FBEE4684F /* BridgeConfig.swift */; };
 		86307D8E1B2C9AC2C3B36FDF /* StarBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393571BE5F7B0B96E565CB86 /* StarBridgeApp.swift */; };
 		8652EDAB7BB7B1ABB4CAC97C /* ChatModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE31A9B5CB54B42886768E82 /* ChatModel.swift */; };
 		88233748899B3CC1A64708FD /* StarBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393571BE5F7B0B96E565CB86 /* StarBridgeApp.swift */; };
 		8BC11C31A1F953C004D2AE0D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D26C9460BD4AFA35143DCCE4 /* Assets.xcassets */; };
+		8C36FFCE571B2999FF9D56CB /* PendingDecisionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D828846FB3F33CF8257B1470 /* PendingDecisionsView.swift */; };
 		9AFEE1FCFC5BEA8DBD85D8D8 /* ChatModel.swift.bak-pre982 in Resources */ = {isa = PBXBuildFile; fileRef = BA21F235FBD0BAB48AC00444 /* ChatModel.swift.bak-pre982 */; };
 		9E7312955D429271CA33C63C /* DeepSeekAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03193FCE556C39C4D3B9CA8 /* DeepSeekAccountView.swift */; };
+		AC8504859163AA41CEFAB7E3 /* MorningBriefView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B094B3E91DB92D2091937528 /* MorningBriefView.swift */; };
 		BA54D947837E111B8840C520 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35D46373D0DA2F68EBFB72D /* ContentView.swift */; };
 		BC4E1BA1542FB2F2E0E59E86 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35D46373D0DA2F68EBFB72D /* ContentView.swift */; };
 		C71AF545986372525ED9C971 /* ContentView.swift.bak-pre982 in Resources */ = {isa = PBXBuildFile; fileRef = 60C5DA22B38A6A0592E68680 /* ContentView.swift.bak-pre982 */; };
@@ -40,12 +44,14 @@
 		60C5DA22B38A6A0592E68680 /* ContentView.swift.bak-pre982 */ = {isa = PBXFileReference; path = "ContentView.swift.bak-pre982"; sourceTree = "<group>"; };
 		6E4927EC717CE9F49D5135AD /* StarBridge.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = StarBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7556AD71898EDE233ABA6097 /* StarBridgeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StarBridgeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B094B3E91DB92D2091937528 /* MorningBriefView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningBriefView.swift; sourceTree = "<group>"; };
 		B611BC52A514B8D48B67D804 /* SpeechManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechManager.swift; sourceTree = "<group>"; };
 		BA21F235FBD0BAB48AC00444 /* ChatModel.swift.bak-pre982 */ = {isa = PBXFileReference; path = "ChatModel.swift.bak-pre982"; sourceTree = "<group>"; };
 		C03193FCE556C39C4D3B9CA8 /* DeepSeekAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepSeekAccountView.swift; sourceTree = "<group>"; };
 		CE31A9B5CB54B42886768E82 /* ChatModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModel.swift; sourceTree = "<group>"; };
 		D26C9460BD4AFA35143DCCE4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D35D46373D0DA2F68EBFB72D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		D828846FB3F33CF8257B1470 /* PendingDecisionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingDecisionsView.swift; sourceTree = "<group>"; };
 		DA166235E3DF298FBEE4684F /* BridgeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeConfig.swift; sourceTree = "<group>"; };
 		F0C43F84CAA405CA2697A44F /* Info-Mac.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Info-Mac.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -81,6 +87,8 @@
 				0F8D002E1E88D53BBBF4227F /* Info-iOS.plist */,
 				F0C43F84CAA405CA2697A44F /* Info-Mac.plist */,
 				1A0CFE3ABA93DFFB532FE368 /* Message.swift */,
+				B094B3E91DB92D2091937528 /* MorningBriefView.swift */,
+				D828846FB3F33CF8257B1470 /* PendingDecisionsView.swift */,
 				0F68669986829EDE3BAC9D61 /* PlatformColor.swift */,
 				B611BC52A514B8D48B67D804 /* SpeechManager.swift */,
 				393571BE5F7B0B96E565CB86 /* StarBridgeApp.swift */,
@@ -199,6 +207,8 @@
 				BC4E1BA1542FB2F2E0E59E86 /* ContentView.swift in Sources */,
 				9E7312955D429271CA33C63C /* DeepSeekAccountView.swift in Sources */,
 				56C0DF5562881EE47A1CB286 /* Message.swift in Sources */,
+				AC8504859163AA41CEFAB7E3 /* MorningBriefView.swift in Sources */,
+				5B4A1797E17BBDFD67579DB5 /* PendingDecisionsView.swift in Sources */,
 				120E54B261DA8A9293D14793 /* PlatformColor.swift in Sources */,
 				3F8F6C907E486691683C7993 /* SpeechManager.swift in Sources */,
 				86307D8E1B2C9AC2C3B36FDF /* StarBridgeApp.swift in Sources */,
@@ -214,6 +224,8 @@
 				BA54D947837E111B8840C520 /* ContentView.swift in Sources */,
 				E9CF2C3F7E49A61741C27A5F /* DeepSeekAccountView.swift in Sources */,
 				471294C28550F8534B51601B /* Message.swift in Sources */,
+				5D3C0B83DB6D11BD7893E0DE /* MorningBriefView.swift in Sources */,
+				8C36FFCE571B2999FF9D56CB /* PendingDecisionsView.swift in Sources */,
 				57559BCEE696C8350D385A18 /* PlatformColor.swift in Sources */,
 				46453E9E1207348991ADD5DC /* SpeechManager.swift in Sources */,
 				88233748899B3CC1A64708FD /* StarBridgeApp.swift in Sources */,
@@ -229,7 +241,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "StarBridgeApp/Info-Mac.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -257,7 +269,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.9.10;
+				MARKETING_VERSION = 0.9.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.starbridge.mobile;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -270,7 +282,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "StarBridgeApp/Info-Mac.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -354,7 +366,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.9.10;
+				MARKETING_VERSION = 0.9.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.starbridge.mobile;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
