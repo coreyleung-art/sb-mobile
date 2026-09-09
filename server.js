@@ -47,6 +47,31 @@ const server = http.createServer(async (req, res) => {
   const p = url.pathname;
   if (req.method === 'GET' && p === '/health') return sendJson(res, 200, {ok:true, name:'sb-mobile-bridge', port:PORT});
 
+  // 推演工作台代理: /wargame* → 127.0.0.1:8812 (bench/board/layers/tree/playback + d3)
+  if (req.method === 'GET' && (p === '/wargame' || p.startsWith('/wargame/') || p === '/wargame/')) {
+    let sub = p.replace(/^\/wargame\/?/, '');
+    if (!sub) sub = 'bench';   // /wargame 默认 = 推演工作台
+    const target = 'http://127.0.0.1:8812/' + sub;
+    const httpMod = require('node:http');
+    return httpMod.get(target, (r2) => {
+      let body = '';
+      r2.on('data', c => body += c);
+      r2.on('end', () => {
+        const ct = r2.headers['content-type'] || 'text/html; charset=utf-8';
+        res.writeHead(200, { 'Content-Type': ct });
+        res.end(body);
+      });
+    }).on('error', () => sendJson(res, 502, { ok:false, error:'wargame engine 未起(127.0.0.1:8812)' }));
+  }
+  // d3.min.js 也给推演页用
+  if (req.method === 'GET' && p === '/wargame/d3.min.js') {
+    const httpMod = require('node:http');
+    return httpMod.get('http://127.0.0.1:8812/d3.min.js', (r2) => {
+      let b = ''; r2.on('data', c => b += c);
+      r2.on('end', () => { res.writeHead(200, {'Content-Type':'application/javascript'}); res.end(b); });
+    }).on('error', () => sendJson(res, 502, {ok:false, error:'d3 not proxied'}));
+  }
+
   // v9.9 DeepSeek 账户余额: 服务端带 key 查官方 GET /user/balance(key 不落 App)
   if (req.method === 'GET' && p === '/api/deepseek/balance') {
     try {

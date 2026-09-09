@@ -1,4 +1,5 @@
 import SwiftUI
+import SafariServices
 import AVFoundation
 import PhotosUI
 
@@ -15,6 +16,7 @@ struct ContentView: View {
     @State private var showDrawer = false                    // v9.7 会话抽屉（左滑/按钮开关）
     @State private var nameFixPrompt: (alias: String, target: String)? = nil  // v9.7.1 疑似智能体名候选
     @State private var showAccount = false                   // v9.9 DeepSeek 账户页
+    @State private var showWargame = false                  // v9.10 推演工作台
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -71,6 +73,17 @@ struct ContentView: View {
                         .background(Color.white.opacity(0.08)).clipShape(Circle())
                 }
                 .buttonStyle(.plain)
+                // v9.10 商业沙盘推演工作台入口（SFSafari 内嵌 /sb/wargame）
+                Button {
+                    showWargame = true
+                } label: {
+                    Image(systemName: "gamecontroller.fill")
+                        .font(.system(size: 14)).foregroundColor(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Color.orange.opacity(0.25)).clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("商业沙盘 · 推演工作台")
                 if model.queueCount > 0 && model.currentTarget == "mac-mini" {
                     HStack(spacing: 4) {
                         Image(systemName: "hourglass").font(.system(size: 10))
@@ -279,6 +292,11 @@ struct ContentView: View {
         // v9.9 DeepSeek 账户页（余额 + 充值跳转）
         .sheet(isPresented: $showAccount) {
             DeepSeekAccountView()
+        }
+
+        // v9.10 商业沙盘推演工作台（内嵌打开, 不退出星台）
+        .sheet(isPresented: $showWargame) {
+            SafariSheet(url: URL(string: "\(BridgeConfig.baseURL)/wargame")!)
         }
     }
 
