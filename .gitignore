@@ -14,3 +14,4 @@ ios/StarBridge/StarBridge.xcodeproj/xcuserdata/
 # 旧备份(入版本管理后不再需要 .bak 堆叠)
 *.bak*
 *.bak-*
+.build/
