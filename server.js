@@ -12,6 +12,16 @@ const os = require('node:os');
 
 const PORT = process.env.SB_PORT || 8820;
 const BB = process.env.SB_BB || 'http://127.0.0.1:8792';
+// v9.10.1: .env 全量加载(KEY=VAL 每行, 已存在的环境变量优先)——key 与窄开关均从 .env 读
+(function loadDotEnv() {
+  try {
+    const raw = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
+    for (const line of raw.split('\n')) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$/);
+      if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].trim();
+    }
+  } catch (e) { /* .env 缺失 */ }
+})();
 const TOKEN = (fs.existsSync(path.join(__dirname, '.token')) 
   ? fs.readFileSync(path.join(__dirname, '.token'), 'utf8').trim() 
   : 'sb-mobile-20260903'); // 0600 文件优先
@@ -87,7 +97,10 @@ const server = http.createServer(async (req, res) => {
       if (!key) return sendJson(res, 200, {ok:false, error:'key-not-configured', hint:'server 需 DEEPSEEK_API_KEY(env 或 ~/sb-mobile/.env)'});
       const now = Date.now();
       if (deepseekCache && (now - deepseekCache.ts) < 60000) return sendJson(res, 200, deepseekCache.data);
-      httpsMod.get('https://api.deepseek.com/user/balance', { headers: { 'Authorization': 'Bearer ' + key, 'Accept': 'application/json' } }, (r) => {
+      // 本机网络 TLS 拦截(自签链) → SB_DS_ALLOW_SELF_SIGNED=1 时仅对本官方端点放行(窄开关, 默认关)
+      const dsOpts = { headers: { 'Authorization': 'Bearer ' + key, 'Accept': 'application/json' },
+                       rejectUnauthorized: process.env.SB_DS_ALLOW_SELF_SIGNED === '1' ? false : undefined };
+      httpsMod.get('https://api.deepseek.com/user/balance', dsOpts, (r) => {
         let d = ''; r.on('data', c => d += c); r.on('end', () => {
           try {
             const j = JSON.parse(d);
