@@ -1,0 +1,16 @@
+# 星台 v0.9.9.1 版本管理忽略面
+DerivedData/
+build/
+*.ipa
+.DS_Store
+xcuserdata/
+*.xcuserstate
+# 密钥与运行时产物不入仓
+.token
+.env
+uploads/
+ios/StarBridge/StarBridge.xcodeproj/project.xcworkspace/xcuserdata/
+ios/StarBridge/StarBridge.xcodeproj/xcuserdata/
+# 旧备份(入版本管理后不再需要 .bak 堆叠)
+*.bak*
+*.bak-*

@@ -1,0 +1,22 @@
+[
+  {"prefix": "session-fa1f9150", "name": "星桥", "desc": "总线协调者"},
+  {"prefix": "session-a190c54c", "name": "明鉴", "desc": "蓝图主编+架构师"},
+  {"prefix": "session-2a15e6b1", "name": "司库", "desc": "资源管理 HR"},
+  {"prefix": "session-9910d4b2", "name": "守灯", "desc": "健康审查+迭代"},
+  {"prefix": "session-6ed4daf2", "name": "守望", "desc": "灾难防御"},
+  {"prefix": "session-b241741f", "name": "守灯塔", "desc": "系统运维+知识库"},
+  {"prefix": "session-0e84e65c", "name": "守链", "desc": "依赖供应链"},
+  {"prefix": "session-5a5368af", "name": "罗盘", "desc": "设备协调"},
+  {"prefix": "session-aa528267", "name": "老登", "desc": "外卖运营+laodeng"},
+  {"prefix": "session-a3bc8cba", "name": "知了", "desc": "学习引擎"},
+  {"prefix": "session-ffb7c3ab", "name": "验金石", "desc": "QA验收"},
+  {"prefix": "session-b193c782", "name": "回声", "desc": "智能客服"},
+  {"prefix": "session-de7b29de", "name": "灯塔", "desc": "外卖采集统筹"},
+  {"prefix": "session-55d4d1bd", "name": "文汇", "desc": "文档摄取"},
+  {"prefix": "session-92623479", "name": "驿使", "desc": "外链通讯"},
+  {"prefix": "session-4787d717", "name": "数据调查员", "desc": "情报收集"},
+  {"prefix": "session-8c2494e0", "name": "星舵", "desc": "进度监督"},
+  {"prefix": "session-54e809ed", "name": "拾光", "desc": "媒体专员"},
+  {"prefix": "session-f38244df", "name": "明鉴v2", "desc": "SystemGraph"},
+  {"prefix": "session-2fe61625", "name": "用户洞察", "desc": "经营参谋"}
+]
