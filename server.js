@@ -61,7 +61,10 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && (p === '/wargame' || p.startsWith('/wargame/') || p === '/wargame/')) {
     let sub = p.replace(/^\/wargame\/?/, '');
     if (!sub) sub = 'bench';   // /wargame 默认 = 推演工作台
-    const target = 'http://127.0.0.1:8812/' + sub;
+    // 转发时带上原始 query(?k=v), 供 /api/md 等读参数
+    const qIdx = req.url.indexOf('?');
+    const qs = qIdx >= 0 ? req.url.slice(qIdx) : '';
+    const target = 'http://127.0.0.1:8812/' + sub + qs;
     const httpMod = require('node:http');
     return httpMod.get(target, (r2) => {
       let body = '';
