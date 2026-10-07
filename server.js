@@ -35,7 +35,7 @@ function bbWrite(key, value) {
     const body = JSON.stringify(value);
     const req = http.request(BB + '/' + key, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'Authorization': 'Bearer bb-token-20260829-macmini' }
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'Authorization': 'Bearer ' + require("node:fs").readFileSync(process.env.HOME + "/.dsh/board-token", "utf8").trim() }
     }, (res) => { let d=''; res.on('data',c=>d+=c); res.on('end',()=>resolve({code:res.statusCode, body:d})); });
     req.on('error', (e) => resolve({code:0, body:String(e)}));
     req.write(body); req.end();
@@ -44,7 +44,7 @@ function bbWrite(key, value) {
 
 function bbRead(key) {
   return new Promise((resolve) => {
-    http.get(BB + '/' + key, { headers: { 'Authorization': 'Bearer bb-token-20260829-macmini' } }, (res) => {
+    http.get(BB + '/' + key, { headers: { 'Authorization': 'Bearer ' + require("node:fs").readFileSync(process.env.HOME + "/.dsh/board-token", "utf8").trim() } }, (res) => {
       let d=''; res.on('data',c=>d+=c); res.on('end',()=>resolve({code:res.statusCode, body:d}));
     }).on('error', (e) => resolve({code:0, body:String(e)}));
   });
@@ -179,7 +179,7 @@ const server = http.createServer(async (req, res) => {
                                            note: decisionsAggregator().length ? '' : '无待办' } } };
       // 健康: 最新 cld-monitor 告警卡名(黑板 notes/mac-mini/cld-monitor-alert-*)
       try {
-        const req2 = http.get(BB + '/notes/', { headers: { 'Authorization': 'Bearer bb-token-20260829-macmini' } }, (r2) => {
+        const req2 = http.get(BB + '/notes/', { headers: { 'Authorization': 'Bearer ' + require("node:fs").readFileSync(process.env.HOME + "/.dsh/board-token", "utf8").trim() } }, (r2) => {
           let d2 = ''; r2.on('data', c => d2 += c); r2.on('end', () => {
             try {
               const j = JSON.parse(d2);
@@ -393,6 +393,91 @@ const server = http.createServer(async (req, res) => {
     } catch(e) { return sendJson(res, 500, {error:String(e)}); }
   }
 
+  // v9.12（2026-10-03 用户要求）：星台集成 cldvoice 成稿 —— 转发本机 8902 成稿引擎
+  // 契约对齐 dsh-plugin-cldvoice POST /voice/draft：{discussion:[{role,content}], title}
+  // → {success,id,title,file,content}；循环回环无需 token
+  if (req.method === 'POST' && p === '/api/draft') {
+    try {
+      const { discussion, title } = JSON.parse(raw || '{}');
+      // ★ 契约归一（8902 实测）：段字段=text；role 取 user/ai；ts 可选
+      const segs = (Array.isArray(discussion) ? discussion : []).map((s) => ({
+        text: String(s && (s.text !== undefined ? s.text : s.content) || '').slice(0, 2000),
+        role: String(s && s.role || '') === '用户' ? 'user' : (/^(ai|星桥|assistant)$/i.test(String(s && s.role || '')) ? 'ai' : String(s && s.role || '')),
+        ts: s && s.ts ? String(s.ts) : '',
+      }));
+      // ★ 审查补强（2026-10-03）：公网入口防成本风暴——段数/总量双上限，超限 400
+      const capped = segs.slice(0, 50);
+      const totalChars = capped.reduce((n, s) => n + s.text.length, 0);
+      if (segs.length > 50 || totalChars > 20000) {
+        return sendJson(res, 400, { error: 'discussion too large（≤50 段 / 总长 ≤20000 字）' });
+      }
+      const up = await new Promise((resolve) => {
+        const body = JSON.stringify({ discussion: capped, title: String(title || '语音需求').slice(0, 80), insert: false });
+        const r = require('node:http').request('http://127.0.0.1:8902/api/draft', {
+          method: 'POST', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+        }, (r2) => { let b = ''; r2.on('data', (c) => b += c); r2.on('end', () => resolve({ code: r2.statusCode, body: b })); });
+        r.on('error', (e) => resolve({ code: 0, body: String(e) }));
+        r.end(body);
+      });
+      if (up.code === 200) {
+        const d = JSON.parse(up.body);
+        if (d.success) return sendJson(res, 200, { ok: true, content: d.content || '', title: d.title, file: d.file });
+        return sendJson(res, 500, { error: d.error || 'draft failed' });
+      }
+      return sendJson(res, 502, { error: '8902 成稿引擎不可达: ' + up.body.slice(0, 120) });
+    } catch(e) { return sendJson(res, 500, { error: String(e) }); }
+  }
+
+  // v9.14（2026-10-03 用户要求·星台↔CLD 能力一致性）：成稿草稿列表与读取
+  // 列表代理 8902 GET /api/drafts；单篇直读本机草稿目录（basename 防穿越）
+  if (req.method === 'GET' && p === '/api/drafts') {
+    try {
+      const up = await new Promise((resolve) => {
+        require('node:http').get('http://127.0.0.1:8902/api/drafts', (r2) => {
+          let b = ''; r2.on('data', (c) => b += c); r2.on('end', () => resolve({ code: r2.statusCode, body: b }));
+        }).on('error', (e) => resolve({ code: 0, body: String(e) }));
+      });
+      if (up.code === 200) {
+        const d = JSON.parse(up.body);
+        return sendJson(res, 200, { ok: true, drafts: d.drafts || [] });
+      }
+      return sendJson(res, 502, { error: '8902 草稿列表不可达: ' + up.body.slice(0, 100) });
+    } catch(e) { return sendJson(res, 500, { error: String(e) }); }
+  }
+  if (req.method === 'GET' && p === '/api/draft/file') {
+    try {
+      const name = String(url.searchParams.get('name') || '');
+      const base = path.basename(name);                 // 防路径穿越
+      if (!base || base !== name || !/\.md$/.test(base)) return sendJson(res, 400, { error: 'name 必须为 *.md 文件名' });
+      const dir = path.join(os.homedir(), 'dsh-collab', 'cld-voice', 'drafts');
+      const fpath = path.join(dir, base);
+      if (!fs.existsSync(fpath)) return sendJson(res, 404, { error: '草稿不存在: ' + base });
+      const content = fs.readFileSync(fpath, 'utf8').slice(0, 20000);
+      return sendJson(res, 200, { ok: true, name: base, content });
+    } catch(e) { return sendJson(res, 500, { error: String(e) }); }
+  }
+
+  // v9.15（2026-10-04 星台↔CLD 一致性续）：草稿插入 CLD 上下文（代理 8902 /api/draft/insert）
+  if (req.method === 'POST' && p === '/api/draft/insert') {
+    try {
+      const { id, title } = JSON.parse(raw || '{}');
+      if (!id || !/^[A-Za-z0-9_.-]+$/.test(String(id))) return sendJson(res, 400, { error: 'id 必须为草稿文件名（不含 .md）' });
+      const up = await new Promise((resolve) => {
+        const body = JSON.stringify({ id: String(id), title: String(title || '') });
+        const r = require('node:http').request('http://127.0.0.1:8902/api/draft/insert', {
+          method: 'POST', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+        }, (r2) => { let b = ''; r2.on('data', (c) => b += c); r2.on('end', () => resolve({ code: r2.statusCode, body: b })); });
+        r.on('error', (e) => resolve({ code: 0, body: String(e) }));
+        r.end(body);
+      });
+      if (up.code === 200) {
+        const d = JSON.parse(up.body);
+        return sendJson(res, 200, { ok: true, key: d.key, board: d.board });
+      }
+      return sendJson(res, 502, { error: '8902 插入不可达: ' + up.body.slice(0, 120) });
+    } catch(e) { return sendJson(res, 500, { error: String(e) }); }
+  }
+
   if (req.method === 'POST' && p === '/api/chat') {
     try {
       const { text, session, target } = JSON.parse(raw || '{}');
@@ -407,6 +492,8 @@ const server = http.createServer(async (req, res) => {
         const txt = (text || '').trim();
         const val = { content:'[星台直聊→' + target + '] ' + txt, from:'bus:sb-mobile', key, to: target, ts,
           type:'bus-envelope', task_id:'sb-role-' + ts,
+          // ★ A⑤-2（2026-10-04）：信封显式语义——要求行动=reply_required+subject（comm-standard §3）
+          reply_required:true, subject:'星台直聊·' + target, awaiting:'mac-mini',
           _bus:{ task_id:'sb-role-' + ts, from:'sb-mobile', action:'mobile-role-msg', domain:'mac-mini' } };
         const r = await bbWrite(key, val);
         if (r.code === 200) return sendJson(res, 200, {ok:true, ts, routedTo:target, mode:'role-direct'});
@@ -442,6 +529,13 @@ const server = http.createServer(async (req, res) => {
     const r = await bbRead(replyKey);
     if (r.code === 200 && r.body) {
       try { const d = JSON.parse(r.body); if (d.value) return sendJson(res, 200, {ok:true, replies:[{ts:d.value.ts||0, reply:d.value}]}); } catch(e){}
+    }
+    // ★ A⑤-1（2026-10-04）：session 键未命中 → fallback latest-main（协调者按 main 约定写回复时 App 也能看到）
+    if (session !== 'i9' && session !== 'main') {
+      const fm = await bbRead(REPLY_PREFIX + '/latest-main');
+      if (fm.code === 200 && fm.body) {
+        try { const d = JSON.parse(fm.body); if (d.value) return sendJson(res, 200, {ok:true, replies:[{ts:d.value.ts||0, reply:d.value}], via:'fallback-main'}); } catch(e){}
+      }
     }
     return sendJson(res, 200, {ok:true, replies:[]});
   }

@@ -84,7 +84,9 @@ struct DeepSeekAccountView: View {
             }
             .background(Color(red: 0.07, green: 0.09, blue: 0.13).ignoresSafeArea())
             .navigationTitle("DeepSeek 账户")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("完成") { dismiss() }
@@ -99,7 +101,9 @@ struct DeepSeekAccountView: View {
                 }
             }
         }
+        #if os(iOS)
         .navigationViewStyle(StackNavigationViewStyle())
+        #endif
     }
 
     private func row(_ k: String, _ v: String) -> some View {

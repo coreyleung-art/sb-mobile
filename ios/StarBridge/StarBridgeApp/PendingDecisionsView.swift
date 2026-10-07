@@ -27,14 +27,18 @@ struct PendingDecisionsView: View {
             }
             .background(Color(red: 0.07, green: 0.09, blue: 0.13).ignoresSafeArea())
             .navigationTitle("📮 待你决定")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("完成") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") } }
             }
             .onAppear { Task { await load() } }
         }
+        #if os(iOS)
         .navigationViewStyle(StackNavigationViewStyle())
+        #endif
     }
 
     @ViewBuilder

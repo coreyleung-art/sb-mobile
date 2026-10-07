@@ -16,7 +16,9 @@ struct ContentView: View {
     @State private var showDrawer = false                    // v9.7 会话抽屉（左滑/按钮开关）
     @State private var nameFixPrompt: (alias: String, target: String)? = nil  // v9.7.1 疑似智能体名候选
     @State private var showAccount = false                   // v9.9 DeepSeek 账户页
+    @AppStorage("autoSpeakReplies") private var autoSpeakReplies = true  // v9.11 收到回复自动朗读开关（用户 2026-10-03 询问）
     @State private var showWargame = false                  // v9.10 推演工作台
+    @State private var showDrafts = false                   // v9.14 成稿草稿列表（CLD 能力一致性）
     @State private var showPending = false                   // R1 待你决定
     @State private var showBrief = false                     // R2 晨报
     @State private var pendingBadge = 0                      // R1 徽标计数
@@ -105,6 +107,18 @@ struct ContentView: View {
                         .background(Color.white.opacity(0.08)).clipShape(Circle())
                 }
                 .buttonStyle(.plain)
+                // v9.12（2026-10-03 用户要求）：cldvoice 成稿入口 —— 当前会话 → 8902 成稿引擎
+                Button {
+                    model.openDraftFlow()
+                } label: {
+                    Image(systemName: "doc.plaintext")
+                        .font(.system(size: 14)).foregroundColor(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Color(red: 0.20, green: 0.82, blue: 0.86).opacity(0.25)).clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(model.showDraftFlow)
+                .help("语音讨论成稿 · cldvoice")
                 // v9.10 商业沙盘推演工作台入口（SFSafari 内嵌 /sb/wargame）
                 Button {
                     showWargame = true
@@ -117,13 +131,7 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .help("商业沙盘 · 推演工作台")
                 if model.queueCount > 0 && model.currentTarget == "mac-mini" {
-                    HStack(spacing: 4) {
-                        Image(systemName: "hourglass").font(.system(size: 10))
-                        Text("\(model.queueCount) 条排队").font(.caption)
-                    }
-                    .foregroundColor(.orange)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Color.orange.opacity(0.2)).cornerRadius(10)
+                    QueueBadge(count: model.queueCount)
                 }
                 Circle().fill(model.isConnecting ? .red : .green).frame(width: 8, height: 8)
             }
@@ -306,7 +314,8 @@ struct ContentView: View {
             Task { await model.fetchDevices() }   // 拉设备列表（v9.3）
         }
         .onChange(of: model.messages.count) { _ in
-            if let last = model.messages.last, !last.isMe {
+            // v9.11：自动朗读可关（autoSpeakReplies）；默认开=收到对方新消息即朗读
+            if autoSpeakReplies, let last = model.messages.last, !last.isMe {
                 speech.speak(last.text)
             }
         }
@@ -322,13 +331,23 @@ struct ContentView: View {
             Text("是语音识别把「\(fix.target)」听成了「\(fix.alias)」吗？点替换，或保留原样后手动改。")
         }
         // v9.9 DeepSeek 账户页（余额 + 充值跳转）
+        .sheet(isPresented: $model.showDraftFlow) {
+            DraftFlowView(model: model, speech: speech)
+        }
+        .sheet(isPresented: $showDrafts) {
+            DraftsListView(model: model)
+        }
         .sheet(isPresented: $showAccount) {
             DeepSeekAccountView()
         }
 
         // v9.10 商业沙盘推演工作台（内嵌打开, 不退出星台）
         .sheet(isPresented: $showWargame) {
+            #if os(iOS)
             SafariSheet(url: URL(string: "\(BridgeConfig.baseURL)/wargame")!)
+            #else
+            ExternalLinkView(url: URL(string: "\(BridgeConfig.baseURL)/wargame")!)
+            #endif
         }
         // R1 待你决定收件箱
         .sheet(isPresented: $showPending) {
@@ -417,6 +436,32 @@ struct ContentView: View {
                 model.selectAgent(nil)
                 closeDrawer()
             }
+
+            Divider().overlay(Color.white.opacity(0.1))
+
+            // v9.11：自动朗读开关（用户 2026-10-03 询问「为什么读出来」）
+            Toggle(isOn: $autoSpeakReplies) {
+                Text("自动朗读回复").font(.subheadline).foregroundColor(.white.opacity(0.85))
+            }
+            .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.20, green: 0.82, blue: 0.86)))
+            .padding(.horizontal, 16).padding(.vertical, 6)
+
+            Divider().overlay(Color.white.opacity(0.1))
+
+            // v9.14：成稿草稿入口（CLD 能力一致性——草稿可查可复投）
+            Button {
+                showDrafts = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 14)).foregroundColor(.white.opacity(0.9))
+                    Text("成稿草稿").font(.subheadline).foregroundColor(.white.opacity(0.85))
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.system(size: 12)).foregroundColor(.white.opacity(0.4))
+                }
+                .padding(.horizontal, 16).padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
 
             Divider().overlay(Color.white.opacity(0.1))
 
@@ -612,3 +657,353 @@ struct MessageBubble: View {
             .frame(width: 120, height: 90).overlay(ProgressView())
     }
 }
+
+
+// MARK: - v9.13 成稿弹层（状态球生成中 → 草稿可编辑 → 插入发送）
+struct DraftFlowView: View {
+    @ObservedObject var model: ChatModel
+    @ObservedObject var speech: SpeechManager
+    @Environment(\.dismiss) private var dismiss
+
+    private enum Phase { case generating, review }
+    @State private var phase: Phase = .generating
+    @State private var statusText = "正在整理最近对话…"
+    @State private var title = "语音需求"
+    @State private var fullText = ""
+    @State private var shown = 0
+    @State private var editable = ""
+    @State private var errorText: String? = nil
+    @State private var pulse = false
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack {
+                Text(phase == .generating ? "cldvoice 成稿" : "草稿确认 · \(title)")
+                    .font(.headline).foregroundColor(.white)
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20)).foregroundColor(.white.opacity(0.55))
+                }.buttonStyle(.plain)
+            }
+            if phase == .generating {
+                Spacer()
+                statusBall
+                Text(errorText ?? statusText)
+                    .font(.subheadline)
+                    .foregroundColor(errorText == nil ? .white.opacity(0.8) : .red)
+                    .multilineTextAlignment(.center)
+                ScrollView {
+                    Text(String(fullText.prefix(shown)))
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.88))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                        .padding(10)
+                }
+                .frame(maxHeight: 300)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(10)
+                if errorText != nil {
+                    HStack(spacing: 12) {
+                        Button("重试") { restart() }.buttonStyle(.bordered).tint(.teal)
+                        Button("取消") { dismiss() }.buttonStyle(.bordered).tint(.gray)
+                    }
+                }
+                Spacer()
+            } else {
+                TextEditor(text: $editable)
+                    .font(.system(size: 14))
+                    .foregroundColor(.white)
+                    .scrollContentBackground(.hidden)
+                    .padding(6)
+                    .background(Color.white.opacity(0.06))
+                    .cornerRadius(10)
+                    .frame(maxHeight: .infinity)
+                // v9.13.1：语音补充——按住说话，实时识别文字浮层，松开追加到草稿
+                if speech.isListening {
+                    Text(speech.partialText.isEmpty ? "正在听…" : speech.partialText)
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.9))
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(red: 0.20, green: 0.82, blue: 0.86).opacity(0.18))
+                        .cornerRadius(8)
+                }
+                Button {
+                    // 按住说话（DragGesture 按住触发；松开结束）
+                } label: {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 18)).foregroundColor(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Color(red: 0.20, green: 0.82, blue: 0.86).opacity(0.25)).clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in if !speech.isListening { speech.onResult = { final in
+                                if !final.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    editable = editable.isEmpty ? final : editable + "\n" + final
+                                }
+                                speech.onResult = nil
+                            }
+                            speech.startListening() } }
+                        .onEnded { _ in if speech.isListening { speech.stopListening(finish: true) } }
+                )
+                .help("按住说话，补充草稿内容")
+                HStack(spacing: 10) {
+                    Button("重新生成") { restart() }.buttonStyle(.bordered).tint(.gray)
+                    Button("纠错") { Task { await correctDraft() } }.buttonStyle(.bordered).tint(.orange)
+                    Spacer()
+                    Button("仅插入") {
+                        model.insertLocalMessage("📝 成稿 · \(title)\n\n\(editable)")
+                        dismiss()
+                    }.buttonStyle(.bordered).tint(.teal)
+                    Button("发送") {
+                        model.send(text: editable)
+                        dismiss()
+                    }.buttonStyle(.borderedProminent).tint(.teal)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(red: 0.08, green: 0.10, blue: 0.16).ignoresSafeArea())
+        .onAppear { start() }
+    }
+
+    private var statusBall: some View {
+        ZStack {
+            Circle().fill(RadialGradient(colors: [
+                Color(red: 0.30, green: 0.90, blue: 0.95),
+                Color(red: 0.12, green: 0.45, blue: 0.60).opacity(0.45),
+                .clear
+            ], center: .center, startRadius: 6, endRadius: 62))
+            .frame(width: 116, height: 116)
+            Circle().stroke(Color(red: 0.30, green: 0.90, blue: 0.95).opacity(0.7), lineWidth: 2)
+                .frame(width: 116, height: 116)
+                .scaleEffect(pulse ? 1.16 : 0.85)
+            Image(systemName: "waveform")
+                .font(.system(size: 32)).foregroundColor(.white)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
+        }
+    }
+
+    private func start() {
+        phase = .generating
+        errorText = nil
+        fullText = ""; shown = 0; pulse = false
+        let pool = model.buildDraftPool()
+        statusText = pool.isEmpty ? "没有可成稿的对话，先聊几句吧" : "已取最近 \(pool.count) 条对话，正在成稿…"
+        guard !pool.isEmpty else { errorText = "无可成稿内容"; return }
+        Task {
+            do {
+                let (t, c) = try await model.requestDraft(discussion: pool)
+                title = t; fullText = c; editable = c
+                // 逐字实时呈现（真实内容按节奏展开）
+                let step = 14
+                var i = 0
+                while i < fullText.count {
+                    shown = i
+                    try? await Task.sleep(nanoseconds: 26_000_000)
+                    i += step
+                }
+                shown = fullText.count
+                phase = .review
+            } catch {
+                errorText = "成稿失败：\(error.localizedDescription)"
+            }
+        }
+    }
+
+    // v9.15：纠错——草稿全文送桥 /api/correct（ollama 纠错），结果回填编辑框
+    private func correctDraft() async {
+        guard !editable.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard let url = URL(string: "\(BridgeConfig.baseURL)/api/correct") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(BridgeConfig.token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": editable])
+        do {
+            let (data, _) = try await URLSession.shared.data(for: req)
+            if let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let corrected = obj["corrected"] as? String, !corrected.isEmpty {
+                editable = corrected
+            }
+        } catch { /* 纠错失败保留原文 */ }
+    }
+
+    private func restart() {
+        fullText = ""; shown = 0; editable = ""; title = "语音需求"
+        start()
+    }
+}
+
+
+// MARK: - v9.14 成稿草稿列表（CLD 能力一致性：查/读/复投）
+struct DraftsListView: View {
+    @ObservedObject var model: ChatModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var names: [String] = []
+    @State private var loaded = false
+    @State private var errorText: String? = nil
+    @State private var selected: (name: String, content: String)? = nil
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Text("成稿草稿").font(.headline).foregroundColor(.white)
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 20)).foregroundColor(.white.opacity(0.55))
+                }.buttonStyle(.plain)
+            }
+            if let sel = selected {
+                TextEditor(text: Binding(get: { sel.content }, set: { selected = (sel.name, $0) }))
+                    .font(.system(size: 13)).foregroundColor(.white)
+                    .scrollContentBackground(.hidden)
+                    .padding(6).background(Color.white.opacity(0.06)).cornerRadius(8)
+                    .frame(maxHeight: .infinity)
+                HStack(spacing: 10) {
+                    Button("返回列表") { selected = nil }.buttonStyle(.bordered).tint(.gray)
+                    Button("插入 CLD") { Task { await insertToCld(sel.name) } }.buttonStyle(.bordered).tint(.orange)
+                    Spacer()
+                    Button("仅插入") {
+                        model.insertLocalMessage("📝 成稿 · \(sel.name)\n\n\(sel.content)")
+                        dismiss()
+                    }.buttonStyle(.bordered).tint(.teal)
+                    Button("发送") {
+                        model.send(text: sel.content)
+                        dismiss()
+                    }.buttonStyle(.borderedProminent).tint(.teal)
+                }
+            } else {
+                if !loaded {
+                    ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let err = errorText {
+                    Text(err).font(.subheadline).foregroundColor(.red)
+                } else if names.isEmpty {
+                    Text("暂无草稿").font(.subheadline).foregroundColor(.white.opacity(0.6))
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(names, id: \.self) { n in
+                                Button {
+                                    Task { await open(n) }
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(n.replacingOccurrences(of: ".md", with: ""))
+                                                .font(.system(size: 13, design: .monospaced))
+                                                .foregroundColor(.white.opacity(0.9))
+                                            Text(draftTime(n)).font(.caption).foregroundColor(.white.opacity(0.45))
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(.white.opacity(0.35))
+                                    }
+                                    .padding(.horizontal, 12).padding(.vertical, 8)
+                                }
+                                .buttonStyle(.plain)
+                                Divider().overlay(Color.white.opacity(0.05))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(red: 0.08, green: 0.10, blue: 0.16).ignoresSafeArea())
+        .onAppear { Task { await loadList() } }
+    }
+
+    private func draftTime(_ name: String) -> String {
+        // 形如 20261003-182233.md / cldvoice-20261002101329.md → 可读时间
+        let digits = name.filter { $0.isNumber }
+        guard digits.count >= 8 else { return name }
+        let y = digits.prefix(4), mo = digits.dropFirst(4).prefix(2), d = digits.dropFirst(6).prefix(2)
+        var s = "\(y)-\(mo)-\(d)"
+        if digits.count >= 12 {
+            let hh = digits.dropFirst(8).prefix(2), mm = digits.dropFirst(10).prefix(2)
+            s += " \(hh):\(mm)"
+        }
+        return s
+    }
+
+    private func loadList() async {
+        guard let url = URL(string: "\(BridgeConfig.baseURL)/api/drafts") else { return }
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(BridgeConfig.token)", forHTTPHeaderField: "Authorization")
+        do {
+            let (data, _) = try await URLSession.shared.data(for: req)
+            if let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let arr = obj["drafts"] as? [String] {
+                names = arr.sorted(by: >)
+            } else { errorText = "草稿列表解析失败" }
+        } catch { errorText = "获取草稿失败：\(error.localizedDescription)" }
+        loaded = true
+    }
+
+    // v9.15：插入 CLD 上下文——草稿 id（去 .md）→ 桥 → 8902 写黑板 notes/collab/cld-voice-draft-<id>
+    private func insertToCld(_ name: String) async {
+        let id = name.replacingOccurrences(of: ".md", with: "")
+        guard let url = URL(string: "\(BridgeConfig.baseURL)/api/draft/insert") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(BridgeConfig.token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["id": id, "title": id])
+        do {
+            let (data, _) = try await URLSession.shared.data(for: req)
+            if let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               obj["ok"] as? Bool == true {
+                let key = obj["key"] as? String ?? ""
+                model.insertLocalMessage("📥 已插入 CLD 上下文：\(key)")
+                dismiss()
+            }
+        } catch { errorText = "插入失败：\(error.localizedDescription)" }
+    }
+
+    private func open(_ name: String) async {
+        var comps = URLComponents(string: "\(BridgeConfig.baseURL)/api/draft/file")!
+        comps.queryItems = [URLQueryItem(name: "name", value: name)]
+        var req = URLRequest(url: comps.url!)
+        req.setValue("Bearer \(BridgeConfig.token)", forHTTPHeaderField: "Authorization")
+        do {
+            let (data, _) = try await URLSession.shared.data(for: req)
+            if let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let content = obj["content"] as? String {
+                selected = (name, content)
+            }
+        } catch { errorText = "读取失败：\(error.localizedDescription)" }
+    }
+}
+
+/// 排队徽标（拆出小视图，避免 macOS 端大表达式 type-check 超时）
+private struct QueueBadge: View {
+    let count: Int
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "hourglass").font(.system(size: 10))
+            Text("\(count) 条排队").font(.caption)
+        }
+        .foregroundColor(.orange)
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .background(Color.orange.opacity(0.2)).cornerRadius(10)
+    }
+}
+
+#if os(macOS)
+/// macOS 无 SFSafariViewController：浏览器打开兜底
+struct ExternalLinkView: View {
+    let url: URL
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("该功能在 Mac 版以浏览器打开").font(.caption).foregroundColor(.secondary)
+            Button("打开") { NSWorkspace.shared.open(url) }
+        }
+        .padding(20)
+    }
+}
+#endif

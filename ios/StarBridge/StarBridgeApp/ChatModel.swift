@@ -310,6 +310,48 @@ final class ChatModel: ObservableObject {
         return false
     }
 
+    // v9.13（2026-10-03 用户要求）：成稿交互重构 —— 弹层三阶段（状态球生成中→草稿可编辑→插入发送）
+    @Published var showDraftFlow = false
+    func openDraftFlow() { showDraftFlow = true }
+
+    /// 话题窗口（v9.12.1 修复沿用）：上次「📝 成稿」之后 → 无标记最近 30 分钟 → 兜底最近 8 条；过滤空文本
+    func buildDraftPool() -> [[String: String]] {
+        let markerIdx = messages.lastIndex(where: { $0.text.hasPrefix("📝 成稿") })
+        var pool: [ChatMessage]
+        if let mi = markerIdx {
+            pool = Array(messages[(mi + 1)...])
+        } else {
+            let cutoff = Date().addingTimeInterval(-1800)
+            let recent = messages.filter { $0.ts > cutoff }
+            pool = recent.isEmpty ? Array(messages.suffix(8)) : Array(recent.suffix(20))
+        }
+        return pool.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                   .map { ["role": $0.isMe ? "用户" : "星桥", "content": $0.text] }
+    }
+
+    /// 调桥 /api/draft → 8902 成稿引擎；返回 (title, content)；失败抛错
+    func requestDraft(discussion: [[String: String]]) async throws -> (String, String) {
+        guard let url = URL(string: "\(BridgeConfig.baseURL)/api/draft") else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(BridgeConfig.token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try JSONSerialization.data(withJSONObject: [
+            "discussion": discussion, "title": "语音需求"
+        ])
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard (resp as? HTTPURLResponse)?.statusCode == 200,
+              let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              obj["ok"] as? Bool == true else {
+            let err = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])??["error"] as? String ?? "未知错误"
+            throw NSError(domain: "draft", code: 1, userInfo: [NSLocalizedDescriptionKey: err])
+        }
+        return (obj["title"] as? String ?? "语音需求", obj["content"] as? String ?? "")
+    }
+
+    /// 本地插入一条消息（不发出去）
+    func insertLocalMessage(_ text: String) { appendLocal(text) }
+
     private func appendLocal(_ text: String) {
         messages.append(ChatMessage(text: text, isMe: false, ts: Date()))
         saveHistory()

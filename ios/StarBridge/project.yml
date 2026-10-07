@@ -25,6 +25,7 @@ targets:
         DEVELOPMENT_TEAM: XS7SMKFS42
         MARKETING_VERSION: "0.9.11"
         CURRENT_PROJECT_VERSION: "4"
+        TARGETED_DEVICE_FAMILY: "1"
   StarBridgeMac:
     type: application
     platform: macOS
@@ -36,6 +37,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: StarBridgeApp/Info-Mac.plist
         CODE_SIGN_STYLE: Automatic
-        MARKETING_VERSION: "0.9.8.2"
+        DEVELOPMENT_TEAM: XS7SMKFS42
+        MARKETING_VERSION: "0.9.13"
         CURRENT_PROJECT_VERSION: "5"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
